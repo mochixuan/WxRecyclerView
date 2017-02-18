@@ -1,72 +1,51 @@
 package com.wx.wxrecyclerview;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.view.View;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.wang.avi.AVLoadingIndicatorView;
 import com.wx.wxrecyclerview.adapter.BaseAdapter;
-import com.wx.wxrecyclerview.view.RefreshLayout;
-import com.wx.wxrecyclerview.view.WxRecyclerView;
+import com.wx.wxrecyclerview.view.WxRecyclerView1;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class FooterRefreshActivity extends AppCompatActivity {
 
     private List<String> mLists;
-    private WxRecyclerView mRecyclerView;
+    private WxRecyclerView1 mRecyclerView;
+    private SwipeRefreshLayout mSwipeRefresh;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
+        setContentView(R.layout.activity_footer_refresh);
         init();
     }
 
     private void init() {
         mLists = new ArrayList<>();
         for (int i = 0; i < 30; i++) {
-            mLists.add("data : " + i);
+            mLists.add("second data : " + i);
         }
 
-        mRecyclerView = (WxRecyclerView) findViewById(R.id.recycler_view);
+        mRecyclerView = (WxRecyclerView1) findViewById(R.id.recycler_view);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         final BaseAdapter mAdapter = new BaseAdapter(mLists);
         mRecyclerView.setAdapter(mAdapter);
         mRecyclerView.setLayoutManager(layoutManager);
 
-        mAdapter.setOnItemClickListener(new BaseAdapter.OnItemClickListener() {
+        mSwipeRefresh = (SwipeRefreshLayout) findViewById(R.id.refresh_layout);
+
+        mSwipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
-            public void itemClick(int position) {
-                Toast.makeText(MainActivity.this,""+position,Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(MainActivity.this,FooterRefreshActivity.class);
-                startActivity(intent);
-            }
-        });
-
-        mRecyclerView.setHeaderRefreshListener(new RefreshLayout.OnHeaderRefreshListener() {
-
-            TextView tvHeader;
-            AVLoadingIndicatorView avHeader;
-
-            @Override
-            public void initView(View view) {
-                tvHeader = (TextView) view.findViewById(R.id.tv_header);
-                avHeader = (AVLoadingIndicatorView) view.findViewById(R.id.av_header);
-            }
-
-            @Override
-            public void onHeaderRefresh() {
-                tvHeader.setText("开始刷新");
-                tvHeader.setVisibility(View.GONE);
-                avHeader.show();
+            public void onRefresh() {
+                mSwipeRefresh.setRefreshing(true);
                 new Handler().postDelayed(new Runnable() {
                     @Override
                     public void run() {
@@ -78,28 +57,14 @@ public class MainActivity extends AppCompatActivity {
                         mLists.add(0,"my name is Header2");
                         mLists.add(0,"my name is Header1");
                         mAdapter.notifyItemRangeInserted(0,7);
-                        avHeader.hide();
-                        tvHeader.setVisibility(View.VISIBLE);
-                        tvHeader.setText("刷新成功");
                         mRecyclerView.onHeaderRefreshComplete();
+                        mSwipeRefresh.setRefreshing(false);
                     }
                 },3000);
             }
-
-            @Override
-            public void onRealseRefresh() {
-                avHeader.hide();
-                tvHeader.setText("松开刷新");
-            }
-
-            @Override
-            public void onPullupRefresh() {
-                avHeader.hide();
-                tvHeader.setText("上拉刷新");
-            }
         });
 
-        mRecyclerView.setFooterRefreshListener(new RefreshLayout.OnFooterRefreshListener() {
+        mRecyclerView.setFooterRefreshListener(new WxRecyclerView1.OnFooterRefreshListener() {
 
             TextView tvFooter;
             AVLoadingIndicatorView avFooter;
@@ -146,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
                 tvFooter.setText("上拉刷新");
             }
         });
-
     }
+
 
 }

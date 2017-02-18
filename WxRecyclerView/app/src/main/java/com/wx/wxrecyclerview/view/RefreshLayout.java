@@ -35,6 +35,10 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
 
     private Handler mHandler;
 
+    private Context mContext;
+
+    private AttributeSet mAttrs;
+
     private int mHeaderViewHeight,mFooterViewHeight;
 
     private RefreshState mGlobalState,mHeaderState,mFooterState;
@@ -64,7 +68,9 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
         setOrientation(LinearLayout.VERTICAL);
         mHandler = new Handler();
         mInflater = LayoutInflater.from(context);
-        addHeadOrFootView(true);                                    //add header
+        mContext = context;
+        mAttrs = attrs;
+        addHeadOrFootView(true,mContext,mAttrs);                                    //add header
         mRecyclerView = createRecyclerView(context,attrs);
         mRecyclerView.setOverScrollMode(View.OVER_SCROLL_NEVER);    //remove luminous effect
         addView(mRecyclerView);
@@ -73,16 +79,27 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
-        addHeadOrFootView(false);
+        addHeadOrFootView(false,mContext,mAttrs);
     }
 
-    private void addHeadOrFootView(boolean isHeader) {
+    private void addHeadOrFootView(boolean isHeader,Context context, AttributeSet attrs) {
         try {
-            if (isHeader && getHeaderLayoutId() > 0 ) {
-                mHeaderView = mInflater.inflate(getHeaderLayoutId(),this,false);
-                measureView(mHeaderView);
-                mHeaderViewHeight = mHeaderView.getMeasuredHeight();
-                LayoutParams params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,mHeaderViewHeight);
+            if (isHeader) {
+                mHeaderView = null;
+                LayoutParams params = null;
+                if (getHeaderLayoutId() > 0) {
+                    mHeaderView = mInflater.inflate(getHeaderLayoutId(),this,false);
+                    measureView(mHeaderView);
+                    mHeaderViewHeight = mHeaderView.getMeasuredHeight();
+                    params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,mHeaderViewHeight);
+                    params.topMargin = -mHeaderViewHeight;
+                } else {
+                    mHeaderView = new View(mContext,mAttrs);
+                    measureView(mHeaderView);
+                    mHeaderViewHeight = 0;
+                    params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,mHeaderViewHeight);
+                    params.topMargin = -mHeaderViewHeight;
+                }
                 params.topMargin = -mHeaderViewHeight;
                 addView(mHeaderView,params);
             }
@@ -159,9 +176,9 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
         switch (event.getAction()) {
             case MotionEvent.ACTION_MOVE:
                 int deltaY = y - mDownMotionY;
-                if (mGlobalState==PULL_DOWN && mHeaderView != null) {
+                if (mGlobalState==PULL_DOWN && mHeaderViewHeight != 0) {
                     headerPrepareToRefresh(deltaY);
-                } else if (mGlobalState==PULL_UP && mFooterView != null) {
+                } else if (mGlobalState==PULL_UP && mFooterViewHeight != 0) {
                     footerPrepareToRefresh(deltaY);
                 }
                 mDownMotionY = y;
@@ -169,7 +186,7 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 int topMargin = getHeaderViewTopMargin ();
-                if (mGlobalState==PULL_DOWN) {
+                if (mGlobalState==PULL_DOWN && mHeaderViewHeight != 0) {
                     if (topMargin >= 0) {       //refreshing
                         refreshing(true);
                     } else {                    //restore
@@ -190,12 +207,12 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
     private void headerPrepareToRefresh(int deltaY) {
         int topMargin = dealtScrollMargin(deltaY);
         if (topMargin>=0 && mHeaderState != RELEASE_TO_REFRESH) {
-            if (mHeaderRefreshListener != null && mHeaderView != null) {
+            if (mHeaderRefreshListener != null && mHeaderViewHeight != 0) {
                 mHeaderRefreshListener.onRealseRefresh();
             }
             mHeaderState = RELEASE_TO_REFRESH;
         } else if (topMargin<0 && topMargin>-mHeaderViewHeight && mHeaderState != PULL_TO_REFRESH) {
-            if (mHeaderRefreshListener != null && mHeaderView != null) {
+            if (mHeaderRefreshListener != null && mHeaderViewHeight != 0) {
                 mHeaderRefreshListener.onPullupRefresh();
             }
             mHeaderState = PULL_TO_REFRESH;
@@ -242,7 +259,7 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
         }
 
         if (mRecyclerView != null) {
-            if (deltaY>0) {
+            if (deltaY>0 && mHeaderViewHeight != 0) {
                 View view = mRecyclerView.getChildAt(0);
                 if (view == null)
                     return false;
@@ -256,7 +273,7 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
                     mGlobalState = PULL_DOWN;
                     return true;
                 }
-            } else {
+            } else if (deltaY<=0 && mFooterViewHeight != 0){
                 View view = mRecyclerView.getChildAt(mRecyclerView.getChildCount() - 1);
                 if (view == null)
                     return false;
@@ -313,7 +330,7 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
         if (isHeader) {
             mHeaderState = REFRESHING;
             setHeaderTopMargin(0);
-            if (mHeaderRefreshListener != null && mHeaderView != null) {
+            if (mHeaderRefreshListener != null && mHeaderViewHeight != 0) {
                 mHeaderRefreshListener.onHeaderRefresh();
             }
         } else {
@@ -340,13 +357,15 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
         if (mRecyclerView != null) {
             mRecyclerView.smoothScrollToPosition(0);
         }
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                setHeaderTopMargin(-mHeaderViewHeight);
-            }
-        },400);
-        mHeaderState = PULL_TO_REFRESH;
+        if (mHeaderViewHeight != 0) {
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    setHeaderTopMargin(-mHeaderViewHeight);
+                }
+            },400);
+        }
+        mHeaderState = PULL_DOWN;
     }
 
     @Override
@@ -367,7 +386,7 @@ public abstract class RefreshLayout<T extends RecyclerView> extends LinearLayout
                 setHeaderTopMargin(-mHeaderViewHeight);
             }
         },400);
-        mFooterState = PULL_TO_REFRESH;
+        mFooterState = PULL_UP;
     }
 
     public enum RefreshState{
